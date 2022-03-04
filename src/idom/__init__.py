@@ -4,7 +4,9 @@ from .core.component import Component, component
 from .core.dispatcher import Stop
 from .core.events import EventHandler, event
 from .core.hooks import (
+    create_context,
     use_callback,
+    use_context,
     use_effect,
     use_memo,
     use_reducer,
@@ -21,13 +23,14 @@ from .widgets import hotswap, multiview
 
 
 __author__ = "idom-team"
-__version__ = "0.36.3"  # DO NOT MODIFY
+__version__ = "0.37.1-a2"  # DO NOT MODIFY
 
 __all__ = [
     "component",
     "Component",
     "ComponentType",
     "config",
+    "create_context",
     "event",
     "EventHandler",
     "hooks",
@@ -42,6 +45,7 @@ __all__ = [
     "run",
     "Stop",
     "use_callback",
+    "use_context",
     "use_effect",
     "use_memo",
     "use_reducer",

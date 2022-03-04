@@ -25,7 +25,9 @@ from urllib.parse import urlencode, urlunparse
 from uuid import uuid4
 from weakref import ref
 
-from selenium.webdriver import Chrome
+from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.chrome.webdriver import WebDriver as Chrome
+from selenium.webdriver.common.options import BaseOptions
 from selenium.webdriver.remote.webdriver import WebDriver
 
 from idom.config import IDOM_WEB_MODULES_DIR
@@ -47,7 +49,7 @@ __all__ = [
 
 def create_simple_selenium_web_driver(
     driver_type: Type[WebDriver] = Chrome,
-    driver_options: Optional[Any] = None,
+    driver_options: BaseOptions = ChromeOptions(),
     implicit_wait_timeout: float = 10.0,
     page_load_timeout: float = 5.0,
     window_size: Tuple[int, int] = (1080, 800),
@@ -326,17 +328,17 @@ class HookCatcher:
     Example:
         .. code-block::
 
-            hooks = HookCatcher(index_by_kwarg="key")
+            hooks = HookCatcher(index_by_kwarg="thing")
 
             @idom.component
             @hooks.capture
-            def MyComponent(key):
+            def MyComponent(thing):
                 ...
 
-            ... # render the component
+            ...  # render the component
 
-            # grab the last render of where MyComponent(key='some_key')
-            hooks.index["some_key"]
+            # grab the last render of where MyComponent(thing='something')
+            hooks.index["something"]
             # or grab the hook from the component's last render
             hooks.latest
 

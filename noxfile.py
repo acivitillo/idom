@@ -298,33 +298,16 @@ def tag(session: Session) -> None:
             silent=True,
             external=True,
         )
+        session.run(
+            "git",
+            "diff",
+            "--exit-code",
+            silent=True,
+            external=True,
+        )
     except Exception:
         session.error("Cannot create a tag - there are uncommited changes")
 
-    version = get_version()
-    install_requirements_file(session, "make-release")
-    session.run("pysemver", "check", version)
-
-    changelog_file = ROOT / "docs" / "source" / "developing-idom" / "changelog.rst"
-    for line in changelog_file.read_text().splitlines():
-        if line == version:
-            session.log(f"Found changelog section for version {version}")
-            break
-    else:
-        session.error(
-            f"No changelog entry for {version} in {changelog_file} - "
-            f"make sure you have a title section called {version}."
-        )
-
-    session.run("git", "tag", version, external=True)
-
-    if "push" in session.posargs:
-        session.run("git", "push", "--tags", external=True)
-
-
-@nox.session
-def update_version(session: Session) -> None:
-    """Update the version of all Python and Javascript packages in this repo"""
     if len(session.posargs) > 1:
         session.error("To many arguments")
 
@@ -347,6 +330,32 @@ def update_version(session: Session) -> None:
 
     # trigger npm install to update package-lock.json
     session.install("-e", ".")
+
+    version = get_version()
+    install_requirements_file(session, "make-release")
+    session.run("pysemver", "check", version)
+
+    changelog_file = ROOT / "docs" / "source" / "about" / "changelog.rst"
+    for line in changelog_file.read_text().splitlines():
+        if line == version:
+            session.log(f"Found changelog section for version {version}")
+            break
+    else:
+        session.error(
+            f"No changelog entry for {version} in {changelog_file} - "
+            f"make sure you have a title section called {version}."
+        )
+
+    if session.interactive:
+        response = input("Confirm (yes/no): ").lower()
+        if response != "yes":
+            session.error("Did not create tag")
+
+    # stage, commit, tag, and push version bump
+    session.run("git", "add", "--all", external=True)
+    session.run("git", "commit", "-m", repr(f"version {new_version}"), external=True)
+    session.run("git", "tag", version, external=True)
+    session.run("git", "push", "origin", "main", "--tags", external=True)
 
 
 @nox.session(reuse_venv=True)

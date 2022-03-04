@@ -3,17 +3,15 @@ import ReactDOM from "react-dom";
 import htm from "htm";
 
 import { useJsonPatchCallback } from "./json-patch.js";
-import { loadModelImportSource } from "./import-source.js";
+import { useImportSource } from "./import-source.js";
+import { LayoutContext } from "./contexts.js";
+
 import {
   createElementAttributes,
   createElementChildren,
 } from "./element-utils.js";
 
 const html = htm.bind(React.createElement);
-export const LayoutContext = React.createContext({
-  sendEvent: undefined,
-  loadImportSource: undefined,
-});
 
 export function Layout({ saveUpdateHook, sendEvent, loadImportSource }) {
   const [model, patchModel] = useJsonPatchCallback({});
@@ -40,6 +38,8 @@ export function Element({ model }) {
     }
   } else if (model.tagName == "script") {
     return html`<${ScriptElement} model=${model} />`;
+  } else if (["input", "select", "textarea"].includes(model.tagName)) {
+    return html`<${UserInputElement} model=${model} />`;
   } else if (model.importSource) {
     return html`<${ImportedElement} model=${model} />`;
   } else {
@@ -63,6 +63,64 @@ function StandardElement({ model }) {
   return React.createElement(
     type,
     createElementAttributes(model, layoutContext.sendEvent),
+    ...createElementChildren(
+      model,
+      (model) => html`<${Element} key=${model.key} model=${model} />`
+    )
+  );
+}
+
+// Element with a value attribute controlled by user input
+function UserInputElement({ model }) {
+  const ref = React.useRef();
+  const layoutContext = React.useContext(LayoutContext);
+
+  const props = createElementAttributes(model, layoutContext.sendEvent);
+
+  // Because we handle events asynchronously, we must leave the value uncontrolled in
+  // order to allow all changes committed by the user to be recorded in the order they
+  // occur. If we don't the user may commit multiple changes before we render next
+  // causing the content of prior changes to be overwritten by subsequent changes.
+  let value = props.value;
+  delete props.value;
+
+  // Instead of controlling the value, we set it in an effect.
+  React.useEffect(() => {
+    if (value !== undefined) {
+      ref.current.value = value;
+    }
+  }, [ref.current, value]);
+
+  // Track a buffer of observed values in order to avoid flicker
+  const observedValues = React.useState([])[0];
+  if (observedValues) {
+    if (value === observedValues[0]) {
+      observedValues.shift();
+      value = observedValues[observedValues.length - 1];
+    } else {
+      observedValues.length = 0;
+    }
+  }
+
+  const givenOnChange = props.onChange;
+  if (typeof givenOnChange === "function") {
+    props.onChange = (event) => {
+      observedValues.push(event.target.value);
+      givenOnChange(event);
+    };
+  }
+
+  // Use createElement here to avoid warning about variable numbers of children not
+  // having keys. Warning about this must now be the responsibility of the server
+  // providing the models instead of the client rendering them.
+  return React.createElement(
+    model.tagName,
+    {
+      ...props,
+      ref: (target) => {
+        ref.current = target;
+      },
+    },
     ...createElementChildren(
       model,
       (model) => html`<${Element} key=${model.key} model=${model} />`
@@ -101,14 +159,9 @@ function ImportedElement({ model }) {
   const layoutContext = React.useContext(LayoutContext);
 
   const importSourceFallback = model.importSource.fallback;
-  const [importSource, setImportSource] = React.useState(null);
+  const importSource = useImportSource(model.importSource);
 
   if (!importSource) {
-    // load the import source in the background
-    loadModelImportSource(layoutContext, model.importSource).then(
-      setImportSource
-    );
-
     // display a fallback if one was given
     if (!importSourceFallback) {
       return html`<div />`;
